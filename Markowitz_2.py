@@ -70,8 +70,35 @@ class MyPortfolio:
         """
         TODO: Complete Task 4 Below
         """
-        
-        
+
+        self.lookback = 300
+        self.gamma = 0.5
+
+        for i in range(self.lookback, len(self.price)):
+            returns_window = self.returns[assets].iloc[i - self.lookback : i]
+
+            Sigma = returns_window.cov().values
+            mu = returns_window.mean().values
+            n = len(assets)
+
+            with gp.Env(empty=True) as env:
+                env.setParam("OutputFlag", 0)
+                env.start()
+                with gp.Model(env=env) as model:
+                    w = model.addMVar(n, name="w", lb=0)
+
+                    objective = w @ mu - (self.gamma / 2) * (w @ Sigma @ w)
+                    model.setObjective(objective, gp.GRB.MAXIMIZE)
+
+                    model.addConstr(w.sum() == 1)
+                    model.optimize()
+
+                    if model.status == gp.GRB.OPTIMAL:
+                        weights = [model.getVarByName(f"w[{j}]").X for j in range(n)]
+                        self.portfolio_weights.loc[self.price.index[i], assets] = weights
+
+        self.portfolio_weights[self.exclude] = 0
+
         """
         TODO: Complete Task 4 Above
         """
