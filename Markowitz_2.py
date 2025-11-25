@@ -51,12 +51,13 @@ class MyPortfolio:
     NOTE: You can modify the initialization function
     """
 
-    def __init__(self, price, exclude, lookback=50, gamma=0):
+    def __init__(self, price, exclude, lookback=63, gamma=0.0, top_n=3):
         self.price = price
         self.returns = price.pct_change().fillna(0)
         self.exclude = exclude
         self.lookback = lookback
         self.gamma = gamma
+        self.top_n = top_n
 
     def calculate_weights(self):
         # Get the assets by excluding the specified column
@@ -71,33 +72,31 @@ class MyPortfolio:
         TODO: Complete Task 4 Below
         """
 
-        self.lookback = 300
-        self.gamma = 0.5
-
         for i in range(self.lookback, len(self.price)):
-            returns_window = self.returns[assets].iloc[i - self.lookback : i]
+            scores = {}
+            volatilities = {}
+            
+            for asset in assets:
+                momentum = (1 + self.returns[asset].iloc[i-self.lookback:i]).prod() - 1
+                
+                volatility = self.returns[asset].iloc[i-self.lookback:i].std()
+                volatilities[asset] = volatility if volatility > 0 else 1e-6
+                
+                scores[asset] = momentum / volatilities[asset]
+            
+            sorted_assets = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+            selected_assets = [asset for asset, _ in sorted_assets[:self.top_n]]
+            
+            inv_vol_sum = sum(1/volatilities[asset] for asset in selected_assets)
+            weights_dict = {asset: 0.0 for asset in assets}
+            
+            for asset in selected_assets:
+                weights_dict[asset] = (1/volatilities[asset]) / inv_vol_sum
+            
+            self.portfolio_weights.loc[self.price.index[i], assets] = [weights_dict[a] for a in assets]
 
-            Sigma = returns_window.cov().values
-            mu = returns_window.mean().values
-            n = len(assets)
-
-            with gp.Env(empty=True) as env:
-                env.setParam("OutputFlag", 0)
-                env.start()
-                with gp.Model(env=env) as model:
-                    w = model.addMVar(n, name="w", lb=0)
-
-                    objective = w @ mu - (self.gamma / 2) * (w @ Sigma @ w)
-                    model.setObjective(objective, gp.GRB.MAXIMIZE)
-
-                    model.addConstr(w.sum() == 1)
-                    model.optimize()
-
-                    if model.status == gp.GRB.OPTIMAL:
-                        weights = [model.getVarByName(f"w[{j}]").X for j in range(n)]
-                        self.portfolio_weights.loc[self.price.index[i], assets] = weights
-
-        self.portfolio_weights[self.exclude] = 0
+        self.portfolio_weights[self.exclude] = 0 
+    
 
         """
         TODO: Complete Task 4 Above
