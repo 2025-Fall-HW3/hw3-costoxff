@@ -206,8 +206,6 @@ class MeanVariancePortfolio:
                 TODO: Complete Task 3 Below
                 """
 
-                # Sample Code: Initialize Decision w and the Objective
-                # NOTE: You can modify the following code
                 w = model.addMVar(n, name="w", lb=0)
 
                 objective = w @ mu - (gamma /2) * (w @ Sigma @ w)
